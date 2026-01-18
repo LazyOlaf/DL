@@ -1,13 +1,34 @@
+"""Run logging for conversation turns."""
 from __future__ import annotations
 
 import json
 import os
 import wave
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from dlchat.logging.schema import TurnRecord
+from dlchat.affect import VAD
+from dlchat.llm import LLMConfig
+
+
+@dataclass(frozen=True)
+class TurnRecord:
+    turn_id: int
+    t_start: float
+    t_end: float
+    audio_wav_path: str
+    asr_text: str
+    vad: VAD | None
+    llm_prompt: str
+    llm_config: LLMConfig
+    llm_response: str
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["vad"] = asdict(self.vad) if self.vad else None
+        d["llm_config"] = asdict(self.llm_config)
+        return d
 
 
 @dataclass(frozen=True)

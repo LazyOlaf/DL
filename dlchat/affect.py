@@ -1,3 +1,4 @@
+"""Emotion detection via audeering wav2vec2 VAD regressor."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,11 +9,17 @@ import torch.nn as nn
 from transformers import Wav2Vec2Processor
 from transformers.models.wav2vec2.modeling_wav2vec2 import Wav2Vec2Model, Wav2Vec2PreTrainedModel
 
-from dlchat.logging.schema import AffectVAD
+
+@dataclass(frozen=True)
+class VAD:
+    """Valence-Arousal-Dominance prediction (0-1 scale)."""
+    valence: float
+    arousal: float
+    dominance: float
 
 
 class _RegressionHead(nn.Module):
-    def __init__(self, config) -> None:  # noqa: ANN001
+    def __init__(self, config) -> None:
         super().__init__()
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.dropout = nn.Dropout(config.final_dropout)
@@ -27,7 +34,7 @@ class _RegressionHead(nn.Module):
 
 
 class _AudeeringEmotionModel(Wav2Vec2PreTrainedModel):
-    def __init__(self, config) -> None:  # noqa: ANN001
+    def __init__(self, config) -> None:
         super().__init__(config)
         self.wav2vec2 = Wav2Vec2Model(config)
         self.classifier = _RegressionHead(config)
@@ -42,7 +49,8 @@ class _AudeeringEmotionModel(Wav2Vec2PreTrainedModel):
 
 
 @dataclass(frozen=True)
-class AudeeringMspDimRegressor:
+class AffectModel:
+    """Wrapper for audeering emotion model."""
     model_id: str
 
     def __post_init__(self) -> None:
@@ -54,7 +62,7 @@ class AudeeringMspDimRegressor:
         object.__setattr__(self, "_model", model)
 
     @torch.inference_mode()
-    def predict(self, audio_f32: np.ndarray, *, sample_rate: int) -> AffectVAD:
+    def predict(self, audio_f32: np.ndarray, *, sample_rate: int) -> VAD:
         processed = self._processor(audio_f32, sampling_rate=sample_rate)
         x = processed["input_values"][0].reshape(1, -1)
         x = torch.from_numpy(x).to(self._device)
@@ -62,9 +70,9 @@ class AudeeringMspDimRegressor:
         _, logits = self._model(x)
         y = logits[0].detach().cpu().numpy()
 
-        # Model card: outputs in approx 0..1, order is arousal/dominance/valence.
-        arousal = float(np.clip(y[0], 0.0, 1.0))
-        dominance = float(np.clip(y[1], 0.0, 1.0))
-        valence = float(np.clip(y[2], 0.0, 1.0))
-
-        return AffectVAD(valence=valence, arousal=arousal, dominance=dominance)
+        # Model outputs in approx 0..1, order is arousal/dominance/valence
+        return VAD(
+            valence=float(np.clip(y[2], 0.0, 1.0)),
+            arousal=float(np.clip(y[0], 0.0, 1.0)),
+            dominance=float(np.clip(y[1], 0.0, 1.0)),
+        )
