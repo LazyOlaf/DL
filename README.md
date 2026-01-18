@@ -1,45 +1,87 @@
-# DLChat (Phase A)
+# DLChat
 
-Real-time (mic -> speech segmentation -> ASR -> affect VAD -> local LLM response), research-first and fully local.
+Real-time emotion-aware conversational assistant. Detects user emotion from speech (VAD: valence/arousal/dominance) and uses it to guide LLM responses.
 
-## Phase A baseline (what's implemented)
-- **Audio-only affect** via pretrained audEERING dimensional emotion regressor:
-  - Model: `audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim`
-  - Outputs: continuous `valence/arousal/dominance` ~ `[0, 1]`
-- **ASR** via `faster-whisper` (`small.en`).
-- **LLM** via `llama-cpp-python` + a local GGUF (default target: `Mistral-7B-Instruct-v0.3`).
-- **Logging enabled by default** to `runs/<timestamp>/` (JSONL + utterance WAVs).
+## Quick Start
 
-## Quickstart (Ubuntu 24.04 recommended)
-Prereqs:
-- Python 3.11
-- Build tools for `llama-cpp-python` (e.g., `build-essential`, `cmake`)
-- Audio I/O (e.g., `portaudio19-dev` for `sounddevice`)
+```bash
+# Create environment
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements_phase_a.txt
 
-GPU notes (optional, for speed):
-- `llama-cpp-python` needs to be built with CUDA for GPU offload (see its docs; typically `CMAKE_ARGS="-DLLAMA_CUBLAS=on" FORCE_CMAKE=1 pip install --no-binary llama-cpp-python llama-cpp-python`).
-- `faster-whisper` uses `ctranslate2`; install a CUDA-enabled build if you want GPU ASR.
+# Download a GGUF model (example: TinyLlama for testing)
+mkdir -p models
+# Place your GGUF model at models/mistral.gguf
 
-Install:
-1. `python3.11 -m venv .venv`
-2. `. .venv/bin/activate`
-3. `pip install -r requirements_phase_a.txt`
+# Run with emotion detection
+python -m dlchat realtime
 
-Models:
-- Put your Mistral GGUF at `models/mistral.gguf` (or pass `--llm-gguf`).
-  - Recommended quant (fair baseline): `Q4_K_M`
-- First run will auto-download:
-  - `faster-whisper` model files
-  - the audEERING affect model from Hugging Face
+# Run without emotion detection (for comparison)
+python -m dlchat realtime --no-emotion
 
-Run (mic):
-- `python -m dlchat realtime` (expects `models/mistral.gguf`)
-  - If you need to select a microphone: `python -m dlchat devices` then re-run with `--audio-device <index>`
+# Run with TTS output
+python -m dlchat realtime --tts
+```
 
-Output:
-- Prints transcript, predicted VAD JSON (`[0,1]` floats), and the LLM response.
-- Logs everything under `runs/<timestamp>/`.
+## CLI Options
 
-## Notes
-- The LLM gets a **system prompt** that defines what each `[0,1]` axis means (0 = low, 0.5 = neutral, 1 = high).
-- We do **not** instruct response style; we only provide state + the user's utterance text.
+```
+python -m dlchat realtime [OPTIONS]
+
+Options:
+  --llm-gguf PATH         Path to GGUF model (default: models/mistral.gguf)
+  --asr-model NAME        Whisper model size (default: small.en)
+  --audio-device INDEX    Microphone device index
+  --no-emotion            Disable emotion detection (plain LLM mode)
+  --tts                   Enable text-to-speech output
+  --n-ctx INT             LLM context window (default: 16384)
+  --temperature FLOAT     LLM temperature (default: 0.7)
+
+python -m dlchat devices   # List audio devices
+```
+
+## How It Works
+
+1. **Audio capture**: Microphone input with WebRTC VAD for utterance detection
+2. **ASR**: faster-whisper transcribes speech to text
+3. **Emotion detection**: audeering model predicts VAD (valence/arousal/dominance)
+4. **LLM response**: Local LLM generates response conditioned on transcript + VAD
+5. **TTS** (optional): pyttsx3 speaks the response
+
+### Emotion-Aware Prompting
+
+The LLM receives VAD as numeric context:
+```
+[VAD: V=0.30, A=0.75, D=0.25 | prev: V=0.50, A=0.40, D=0.50]
+
+I lost my job yesterday...
+```
+
+The system prompt explains the VAD scale. The LLM interprets changes naturally without explicit emotion labels.
+
+## Requirements
+
+- Python 3.11+
+- CUDA (optional, for GPU acceleration)
+- Microphone
+- GGUF model file
+
+## Project Structure
+
+```
+dlchat/
+  app/realtime.py    # Main conversation loop
+  asr/               # Speech recognition (faster-whisper)
+  affect/            # Emotion detection (audeering VAD model)
+  audio/             # Mic capture and utterance segmentation
+  llm/               # LLM wrapper (llama-cpp-python)
+  prompts.py         # System prompts for emotion-aware mode
+  logging/           # Turn logging (JSONL + WAV)
+```
+
+## Logs
+
+Each session logs to `runs/<timestamp>/`:
+- `turns.jsonl`: Full conversation with VAD, prompts, responses
+- `audio/*.wav`: Individual utterance recordings

@@ -31,6 +31,8 @@ def main(argv: list[str] | None = None) -> int:
     rt.add_argument("--top-k", type=int, default=40)
     rt.add_argument("--repeat-penalty", type=float, default=1.10)
     rt.add_argument("--max-new-tokens", type=int, default=256)
+    rt.add_argument("--no-emotion", action="store_true", help="Disable emotion detection (plain LLM mode)")
+    rt.add_argument("--tts", action="store_true", help="Enable text-to-speech output")
 
     args = parser.parse_args(argv)
 
@@ -59,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
             top_k=args.top_k,
             repeat_penalty=args.repeat_penalty,
             max_new_tokens=args.max_new_tokens,
+            emotion_enabled=not args.no_emotion,
+            tts_enabled=args.tts,
         )
         return 0
 

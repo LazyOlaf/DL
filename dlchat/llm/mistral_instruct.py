@@ -21,3 +21,22 @@ def build_mistral_instruct_prompt(
 
     parts.append(f"<s>[INST] {u_last.strip()} [/INST]")
     return "".join(parts)
+
+
+def build_tinyllama_prompt(
+    *,
+    system_prompt: str,
+    history: list[tuple[str, str]],
+    user_message: str,
+) -> str:
+    """Build prompt for TinyLlama chat format."""
+    parts: list[str] = [f"<|system|>\n{system_prompt.strip()}</s>"]
+
+    for u, a in history:
+        parts.append(f"<|user|>\n{u.strip()}</s>")
+        parts.append(f"<|assistant|>\n{a.strip()}</s>")
+
+    parts.append(f"<|user|>\n{user_message.strip()}</s>")
+    parts.append("<|assistant|>")
+
+    return "\n".join(parts)

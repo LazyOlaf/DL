@@ -1,5 +1,39 @@
 # PLAN - Real-time Multimodal Conversational Agent with Mental-State Descriptors
 
+## Current Implementation Status (Phase A Complete)
+
+### What's Working
+- **Real-time mic input** with WebRTC VAD for utterance segmentation
+- **ASR** via faster-whisper (configurable model size)
+- **Emotion detection** via pretrained audeering VAD model (valence/arousal/dominance)
+- **Local LLM** via llama-cpp-python (any GGUF model)
+- **TTS output** via pyttsx3 (optional)
+- **Logging** to `runs/<timestamp>/` (JSONL + WAV files)
+
+### CLI Usage
+```bash
+# With emotion detection (default)
+python -m dlchat realtime
+
+# Without emotion detection (plain mode for comparison)
+python -m dlchat realtime --no-emotion
+
+# With TTS output
+python -m dlchat realtime --tts
+
+# List audio devices
+python -m dlchat devices
+```
+
+### Emotion-Aware Prompting Approach
+The LLM receives VAD values as context without explicit labeling:
+- System prompt explains VAD scale (0-1 for each dimension)
+- User message includes: `[VAD: V=0.30, A=0.75, D=0.25 | prev: V=0.50, A=0.40, D=0.50]`
+- LLM interprets the values and shift naturally
+- No forced empathy injection or emotion labels
+
+---
+
 ## 0) Objective (aligned so far)
 Build a human-like conversational chatbot that:
 - takes live video + audio as input,
