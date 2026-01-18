@@ -1,0 +1,8 @@
+# Phase A runtime deps (Python 3.11 recommended)
+numpy>=1.26
+sounddevice>=0.4.7
+webrtcvad>=2.0.10
+faster-whisper>=1.0.3
+torch>=2.2
+transformers>=4.38
+llama-cpp-python>=0.2.55
